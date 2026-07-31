@@ -1,0 +1,67 @@
+{
+  "id": "key_vault",
+  "name": "Azure Key Vault",
+  "name_en": "Azure Key Vault",
+  "version": "1.0.0",
+  "description": "Lectura de secretos, llaves y certificados en Azure Key Vault: obtener secreto, listar secretos y obtener certificado",
+  "description_en": "Read secrets, keys and certificates in Azure Key Vault: get a secret, list secrets and get a certificate",
+  "icon": "icon.svg",
+  "category": "cloud",
+  "category_en": "cloud",
+  "keywords": ["azure", "key vault", "keyvault", "secretos", "secrets", "certificados", "certificates", "microsoft", "cloud", "nube"],
+  "library": {
+    "package": "ruvic-key-vault-connector",
+    "install": "pip install git+https://github.com/Dgirto/Azure-Key-Vault.git#subdirectory=lib",
+    "import_name": "ruvic_key_vault_connector"
+  },
+  "auth_modes": [
+    {
+      "id": "service_principal",
+      "label": "Service Principal (Azure AD)",
+      "fields": [
+        {
+          "key": "tenant_id",
+          "label": "Tenant ID",
+          "type": "text",
+          "required": true,
+          "placeholder": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "key": "client_id",
+          "label": "Client ID",
+          "type": "text",
+          "required": true,
+          "placeholder": "00000000-0000-0000-0000-000000000000"
+        },
+        {
+          "key": "client_secret",
+          "label": "Client Secret",
+          "type": "password",
+          "secret": true,
+          "required": true
+        },
+        {
+          "key": "vault_url",
+          "label": "URL del Key Vault",
+          "type": "text",
+          "required": true,
+          "placeholder": "https://mi-vault.vault.azure.net"
+        },
+        {
+          "key": "connect_timeout",
+          "label": "Timeout de conexión (segundos)",
+          "type": "number",
+          "required": false,
+          "default": "10"
+        }
+      ]
+    }
+  ],
+  "env_prefix": "RUVIC_KEY_VAULT_",
+  "operations": ["keyvault.get_secret", "keyvault.list_secrets", "keyvault.get_certificate"],
+  "test_connection": true,
+  "docs": {
+    "skill": "SKILL.md",
+    "permissions_note": "El Service Principal necesita el rol RBAC 'Key Vault Secrets User' (o el equivalente en la Access Policy clásica: permisos Get y List sobre Secrets) y 'Key Vault Certificate User' (Get y List sobre Certificates) — ambos limitados al vault configurado. No se requieren permisos de escritura ni de administración (Set, Delete, Purge, gestión de acceso). Este conector puede exponer valores de secretos reales — restringí el alcance al mínimo indispensable."
+  }
+}
