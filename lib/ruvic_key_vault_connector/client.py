@@ -29,6 +29,20 @@ from .exceptions import KeyVaultAuthError, KeyVaultDataError, KeyVaultNetworkErr
 from .logging_utils import get_logger
 
 
+def _require_str(value: Any, field: str) -> str:
+    if not isinstance(value, str):
+        raise KeyVaultDataError(f"{field} debe ser un string, no {type(value).__name__}.")
+    return value
+
+
+def _validate_max_results(max_results: Any) -> int:
+    if isinstance(max_results, bool) or not isinstance(max_results, int):
+        raise KeyVaultDataError(f"max_results debe ser un entero, no {type(max_results).__name__}.")
+    if not 1 <= max_results <= 200:
+        raise KeyVaultDataError("max_results debe estar entre 1 y 200.")
+    return max_results
+
+
 class KeyVaultClient:
     """Cliente de lectura de secretos, llaves y certificados de Azure
     Key Vault.
@@ -112,7 +126,7 @@ class KeyVaultClient:
             >>> client.get_secret("db-password")
             'super-secreto-real'
         """
-        secret_name = (secret_name or "").strip()
+        secret_name = _require_str(secret_name, "secret_name").strip()
         if not secret_name:
             raise KeyVaultDataError("secret_name no puede estar vacío.")
         client = self._get_secret_client()
@@ -152,7 +166,7 @@ class KeyVaultClient:
             >>> client.list_secrets()
             [{'name': 'db-password', 'enabled': True, ...}]
         """
-        max_results = max(1, min(int(max_results), 200))
+        max_results = _validate_max_results(max_results)
         client = self._get_secret_client()
         try:
             result = []
@@ -195,7 +209,7 @@ class KeyVaultClient:
             >>> client.get_certificate("mi-cert")
             {'name': 'mi-cert', 'enabled': True, 'expires_on': '2027-01-01T00:00:00', ...}
         """
-        certificate_name = (certificate_name or "").strip()
+        certificate_name = _require_str(certificate_name, "certificate_name").strip()
         if not certificate_name:
             raise KeyVaultDataError("certificate_name no puede estar vacío.")
         client = self._get_certificate_client()
