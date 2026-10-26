@@ -5,6 +5,11 @@ Capacidades:
 - list_secrets():       lista los secretos disponibles (metadatos, no valores).
 - get_certificate():    obtiene los metadatos de un certificado.
 
+Key Vault crea, por cada certificado, un secreto "administrado" (managed) con
+el mismo nombre que contiene el certificado COMPLETO con su clave privada.
+Por seguridad, list_secrets() los omite por defecto y get_secret() se niega
+a devolverlos salvo que se pida explícitamente.
+
 Las credenciales SIEMPRE provienen de variables de entorno
 RUVIC_KEY_VAULT_* (ver config.KeyVaultConfig.from_env). Prohibido
 hardcodearlas.
@@ -113,14 +118,22 @@ class KeyVaultClient:
     # Capacidad 1: obtener un secreto
     # ------------------------------------------------------------------ #
 
-    def get_secret(self, secret_name: str) -> str:
+    def get_secret(self, secret_name: str, allow_certificate_private_key: bool = False) -> str:
         """Obtiene el valor de un secreto.
 
         Args:
             secret_name: nombre del secreto en el Key Vault.
+            allow_certificate_private_key: si el secreto es el respaldo
+                administrado de un certificado (contiene su clave privada),
+                solo se devuelve con True. Úsalo únicamente cuando el
+                usuario pida explícitamente exportar la clave privada.
 
         Returns:
             El valor del secreto.
+
+        Raises:
+            KeyVaultDataError: si el secreto es el respaldo de un
+                certificado y allow_certificate_private_key es False.
 
         Ejemplo:
             >>> client.get_secret("db-password")
@@ -145,6 +158,13 @@ class KeyVaultClient:
             raise KeyVaultNetworkError(f"No se pudo conectar al Key Vault: {exc}") from exc
         except HttpResponseError as exc:
             raise KeyVaultDataError(f"Error de Key Vault: {exc}") from exc
+        if secret.properties.managed and not allow_certificate_private_key:
+            raise KeyVaultDataError(
+                f"{secret_name!r} no es un secreto común: es el respaldo administrado del "
+                "certificado del mismo nombre y contiene su clave privada. Usa "
+                "get_certificate() para ver sus datos; la clave privada solo se exporta si "
+                "el usuario lo pide explícitamente (allow_certificate_private_key=True)."
+            )
         self._logger.info("Secreto %s obtenido", secret_name)
         return secret.value or ""
 
@@ -152,15 +172,18 @@ class KeyVaultClient:
     # Capacidad 2: listar secretos (metadatos, no valores)
     # ------------------------------------------------------------------ #
 
-    def list_secrets(self, max_results: int = 50) -> list[dict[str, Any]]:
+    def list_secrets(self, max_results: int = 50, include_managed: bool = False) -> list[dict[str, Any]]:
         """Lista los secretos disponibles (solo metadatos, nunca valores).
 
         Args:
             max_results: máximo de secretos a retornar (default 50,
                 máximo 200).
+            include_managed: si True, incluye también los secretos
+                administrados que respaldan certificados (managed=True).
+                Por defecto se omiten.
 
         Returns:
-            Lista de dicts: {"name", "enabled", "updated_on"}.
+            Lista de dicts: {"name", "enabled", "updated_on", "managed"}.
 
         Ejemplo:
             >>> client.list_secrets()
@@ -170,14 +193,17 @@ class KeyVaultClient:
         client = self._get_secret_client()
         try:
             result = []
-            for i, item in enumerate(client.list_properties_of_secrets()):
-                if i >= max_results:
+            for item in client.list_properties_of_secrets():
+                if item.managed and not include_managed:
+                    continue
+                if len(result) >= max_results:
                     break
                 result.append(
                     {
                         "name": item.name,
                         "enabled": item.enabled,
                         "updated_on": item.updated_on.isoformat() if item.updated_on else None,
+                        "managed": bool(item.managed),
                     }
                 )
         except ClientAuthenticationError as exc:
@@ -203,7 +229,8 @@ class KeyVaultClient:
             certificate_name: nombre del certificado en el Key Vault.
 
         Returns:
-            Dict con: name, enabled, expires_on, thumbprint (hex).
+            Dict con: name, enabled, subject, issuer, not_before,
+            expires_on, thumbprint (hex).
 
         Ejemplo:
             >>> client.get_certificate("mi-cert")
@@ -229,9 +256,15 @@ class KeyVaultClient:
         except HttpResponseError as exc:
             raise KeyVaultDataError(f"Error de Key Vault: {exc}") from exc
         self._logger.info("Certificado %s obtenido", certificate_name)
+        policy = cert.policy
         return {
             "name": cert.name,
             "enabled": cert.properties.enabled,
+            "subject": policy.subject if policy else None,
+            "issuer": policy.issuer_name if policy else None,
+            "not_before": cert.properties.not_before.isoformat()
+            if cert.properties.not_before
+            else None,
             "expires_on": cert.properties.expires_on.isoformat()
             if cert.properties.expires_on
             else None,

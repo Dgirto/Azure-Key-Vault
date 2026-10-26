@@ -69,3 +69,18 @@ existentes en tu vault.
 - Requiere que el Service Principal tenga acceso de red al Key Vault
   (por defecto los vaults son accesibles desde internet salvo que se
   configure un firewall/red privada específico).
+
+## Secretos de respaldo de certificados
+
+Key Vault crea automáticamente, por cada certificado, un secreto
+*administrado* (`managed`) con el mismo nombre que contiene el certificado
+completo **con su clave privada** (PKCS#12/PEM). El rol "Key Vault Secrets
+User" permite leerlo. Para no exponer claves privadas por accidente:
+
+- `list_secrets()` omite esos secretos por defecto (`include_managed=True`
+  los incluye marcados con `managed: true`).
+- `get_secret()` se niega a devolverlos y sugiere usar `get_certificate()`;
+  solo los entrega con `allow_certificate_private_key=True`.
+
+`get_certificate()` devuelve `subject`, `issuer`, `not_before`,
+`expires_on` y `thumbprint`, sin la clave privada.

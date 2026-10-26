@@ -13,6 +13,23 @@ from dataclasses import dataclass
 ENV_PREFIX = "RUVIC_KEY_VAULT_"
 
 
+def _read_timeout(default: int = 10) -> int:
+    """Lee CONNECT_TIMEOUT tratando el string vacío como ausente: la
+    plataforma envía "" cuando el campo opcional queda en blanco."""
+    raw = (os.environ.get(f"{ENV_PREFIX}CONNECT_TIMEOUT") or "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        raise ValueError(
+            f"{ENV_PREFIX}CONNECT_TIMEOUT debe ser un número entero de segundos, no {raw!r}."
+        ) from None
+    if value <= 0:
+        raise ValueError(f"{ENV_PREFIX}CONNECT_TIMEOUT debe ser mayor que 0, no {value}.")
+    return value
+
+
 @dataclass(frozen=True)
 class KeyVaultConfig:
     """Parámetros de conexión a Azure Key Vault vía Service Principal."""
@@ -51,5 +68,5 @@ class KeyVaultConfig:
             client_id=os.environ[f"{ENV_PREFIX}CLIENT_ID"],
             client_secret=os.environ[f"{ENV_PREFIX}CLIENT_SECRET"],
             vault_url=os.environ[f"{ENV_PREFIX}VAULT_URL"].rstrip("/"),
-            connect_timeout=int(os.environ.get(f"{ENV_PREFIX}CONNECT_TIMEOUT", "10")),
+            connect_timeout=_read_timeout(),
         )

@@ -73,7 +73,7 @@ for s in secretos:
 
 ```python
 cert = client.get_certificate("mi-cert")
-print(cert["expires_on"], cert["thumbprint"])
+print(cert["subject"], cert["issuer"], cert["not_before"], cert["expires_on"], cert["thumbprint"])
 ```
 
 `get_certificate` no exporta la clave privada, solo metadatos.
@@ -101,4 +101,5 @@ except KeyVaultDataError as e:
 2. Nunca imprimas `RUVIC_KEY_VAULT_CLIENT_SECRET` en logs ni en la salida.
 3. **No expongas el valor devuelto por `get_secret` sin que el usuario lo haya pedido explícitamente sabiendo que va a verlo en texto plano.**
 4. Usá `list_secrets` para explorar qué secretos existen antes de pedir uno específico con `get_secret`.
-5. `get_certificate` nunca expone la clave privada — si el usuario necesita la clave privada, indicale que esta librería no lo soporta por diseño (es de solo lectura de metadatos).
+5. **Secretos de respaldo de certificados.** Key Vault crea, por cada certificado, un secreto *administrado* con el mismo nombre que contiene el certificado completo **con su clave privada**. `list_secrets` los omite (usa `include_managed=True` solo para verlos marcados con `managed=True`) y `get_secret` lanza `KeyVaultDataError` si se le pide uno. No uses `allow_certificate_private_key=True` salvo que el usuario pida explícitamente exportar la clave privada y entienda el riesgo.
+6. `get_certificate` nunca expone la clave privada — si el usuario necesita la clave privada, indicale que esta librería no lo soporta por diseño (es de solo lectura de metadatos).
